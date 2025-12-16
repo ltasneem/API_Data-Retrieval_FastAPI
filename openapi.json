@@ -23,7 +23,18 @@
                           
                 }
               }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                    "schema" : { "$ref": "HTTPValidationError"}
+                          
+                }
+              }
             }
+          }
       }
+    }
   }
 }
