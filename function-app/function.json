@@ -1,0 +1,18 @@
+{
+  "scriptFile" : "function_App.py",
+  "bindings": [
+    {
+      "type": "httpTrigger",
+      "direction": "in",
+      "route": "/{*route}",
+      "name" : "req",
+      "methods" : ["get", "post"],
+      "authLevel": "anonymous"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "$return"
+    }
+  ]
+}
