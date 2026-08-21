@@ -1,0 +1,87 @@
+image: $CI_REGISTRY/feb2024/tools-image:latest
+
+stages:
+  - unit_test
+  - build
+  - deploy
+  - swap
+  - regression_test
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "development" || $CI_PIPELINE_SOURCE == 'merge_request_event'
+      variables:
+        CI_ENVIRONMENT_NAME: "dev"
+        SESSION_NAME: 'my-pipeline-dev'
+        APPLICATION_SPN_USER: $AZURE_DEV_SPN_USER
+        APPLICATION_SPN_PASS: $AZURE_DEV_SPN_PASS
+        API_KEY: "NONE"
+
+before_script:
+  - cat /etc/os-release
+  - dmf install -y zip python3.11
+  - python3.11 -m ensurepip --upgrade
+  - az version
+
+pytest:
+  stage: unit_test
+  script:
+    - chmod +x ./azure-infra/scripts/driver-install.sh
+    -
+    -
+    - pytest ./tests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+
+build:
+  stage: build
+  script: 
+    - echo "Zipping files for deployment..."
+    - mkdir -p build_artifacts
+    - zip -r ./build_artifacts/archive.zip . -x ".git/*"
+    - echo "Build artifact created successfully"
+    - unzip -l ./build_artifacts/archive.zip
+  artifacts:
+    paths:
+      - build_artifacts/archive.zip
+
+deploy:
+  stage: deploy
+  dependencies: 
+    - build
+  script:
+    # set group-level credentials
+    - / ./az-credentials.sh $APPLICATION_SPN_USER $APPLICATION_SPN_PASS $APPLICATION_SUBSCRIPTION_ID
+    - chmod +x ./azure-infra/scripts/deployment.sh
+    - ./azure-infra/scripts/deployment.sh
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event" && ($CI_COMMIT_REF_NAME == "development")
+
+swap:
+  stage: swap
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event" && ($CI_COMMIT_REF_NAME == "development")
+      when: delayed
+      start_in: 5 minutes
+  scripts:
+    - python3 ./azure-infra/scripts/run_slots.py $CI_ENVIRONMENT_NAME
+    - echo "Starting slot swaps..."
+    - / ./az-credentials.sh $APPLICATION_SPN_USER $APPLICATION_SPN_PASS $APPLICATION_SUBSCRIPTION_ID
+    - chmod +x ./azure-infra/scripts/swap.sh
+    - ./azure-infra/scripts/swap.sh
+
+
+test:
+  stage: regression_test
+  when: manual
+  script:
+    - python3 --version
+    - python3 ./azure-infra/scripts/run_api.py ./src/config/table_config.json $CI_ENVIRONMENT_NAME $API_KEY
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "merge_request_event" && ($CI_COMMIT_REF_NAME == "development")
+  artifacts:
+    paths:
+      - results.txt
+    expire_in: 1 week
+    
+        
