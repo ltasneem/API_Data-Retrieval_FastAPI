@@ -16,4 +16,4 @@ for APP in "{FUNCTION_APPS[@]}"; do
       --slot "$SLOT_NAME" \
       --target -slot production \
       || { echo "Swap failed $FUNCTION_APP. check logs" ; exit 1; }
-      done
+done
